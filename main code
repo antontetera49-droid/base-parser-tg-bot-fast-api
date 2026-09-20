@@ -34,7 +34,7 @@ class BaseProtectedParser:
 # Initialize application and bot
 app = FastAPI(title="SaaS Parser API")
 
-TELEGRAM_TOKEN = '8400317573:AAGDk-zK41dhr8IzupJL1UAPi9gCw93cvwM'
+TELEGRAM_TOKEN = 'your bot token'
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 parser = BaseProtectedParser()
