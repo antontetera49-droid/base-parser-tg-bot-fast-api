@@ -1,0 +1,108 @@
+import asyncio
+import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import Message
+
+# Stub parser for self-contained example
+import random
+import httpx
+from bs4 import BeautifulSoup
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+]
+
+class BaseProtectedParser:
+    def init(self):
+        pass
+
+    async def parse_target(self, url: str) -> dict:
+        async with httpx.AsyncClient(headers={"User-Agent": random.choice(USER_AGENTS)}, follow_redirects=True) as client:
+            try:
+                response = await client.get(url, timeout=10.0)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    title = soup.find("title").get_text(strip=True) if soup.find("title") else "No title"
+                    return {"status": "success", "url": url, "title": title}
+                return {"status": "error", "code": response.status_code}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+# Initialize application and bot
+app = FastAPI(title="SaaS Parser API")
+
+TELEGRAM_TOKEN = '8400317573:AAGDk-zK41dhr8IzupJL1UAPi9gCw93cvwM'
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher()
+parser = BaseProtectedParser()
+
+# Pydantic schema for FastAPI endpoint
+class ParseRequest(BaseModel):
+    url: str
+
+# --- Telegram Bot Handlers ---
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    text = (
+        "👋 Hello! I'm your assistant bot for rapid protection bypass and data scraping.\n\n"
+        "🛠 <b>To make it work:</b>\n"
+        "1. Make sure the target resource is available.\n"
+        "2. Send me a direct link to the target page in the chat.\n"
+        "3. Get the structured result in a couple of seconds!\n\n"
+        "Use /help to view all available commands."
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    text = (
+        "📋 <b>Available commands:</b>\n\n"
+        "/start — Launch the bot and view instructions\n"
+        "/help — Show this command list\n"
+        "/parse [url] — Start parsing via direct link through the bot\n\n"
+        "💡 <i>You can also interact directly with the FastAPI backend via API endpoints.</i>"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@dp.message(Command("parse"))
+async def cmd_parse(message: Message):
+    # Extract URL from command arguments (e.g., /parse https://example.com)
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("⚠️ Please specify a URL after the command. Example:\n<code>/parse https://httpbin.org/headers</code>", parse_mode="HTML")
+        return
+    
+    url = args[1].strip()
+    await message.answer(f"⏳ Starting protected parser for:\n<code>{url}</code>", parse_mode="HTML")
+    
+    result = await parser.parse_target(url)
+    await message.answer(f"📊 <b>Result:</b>\n<pre>{result}</pre>", parse_mode="HTML")
+
+# --- FastAPI Endpoints ---
+
+@app.post("/api/v1/parse")
+async def api_parse(data: ParseRequest):
+    """API endpoint for integration with external services or frontend"""
+    result = await parser.parse_target(data.url)
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+@app.get("/")
+async def root():
+    return {"status": "running", "service": "Parser SaaS Core"}
+
+# Start bot polling on FastAPI startup (for local development / MVP)
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(dp.start_polling(bot))
+
+
+#HOW TO RUN IT
+# INSTALL PYTHON & ASYNCIO & OS & HTTPX & BEATIFULSOUP
+#AND START FILE WITH COMMAND: PYTHON -M UVICORN YOURFILENAMEBEFOREPY:APP --RELOAD
+#OR JUSTR TEXT ME AND ILL DO IT FOR 25-100$. MY TG IS : @Myhamed91
